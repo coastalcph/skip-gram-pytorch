@@ -9,9 +9,9 @@ from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 data_index = 0
 class Options(object):
-  def __init__(self, datafile, vocabulary_size):
+  def __init__(self, datafile, vocabulary_size, exp_path):
     self.vocabulary_size = vocabulary_size
-    self.save_path = "tmp"
+    self.save_path = 'tmp'
     self.vocabulary = self.read_data(datafile)
     data_or, self.count, self.vocab_words = self.build_dataset(self.vocabulary,
                                                               self.vocabulary_size) 
@@ -162,8 +162,8 @@ def cosine_similarity(v1,v2):
     sumxy += x*y
   return sumxy/math.sqrt(sumxx*sumyy)
 
-def scorefunction(embed):
-  f = open('./tmp/vocab.txt')
+def scorefunction(embed, exp_path):
+  f = open(os.path.join(exp_path, 'vocab.txt'))
   line = f.readline()
   vocab = []
   wordindex = dict()
