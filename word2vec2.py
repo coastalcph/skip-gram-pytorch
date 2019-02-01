@@ -73,7 +73,7 @@ class word2vec:
                   end = time.time()
                   word_embeddings = model.input_embeddings()
                   sp1, sp2 = scorefunction(word_embeddings, self.exp_path)
-                  logging.info('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.data[0]))
+                  logging.info('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.item()))
                   batch_new = batch_num
                   start = time.time()
 
@@ -126,7 +126,7 @@ if __name__ == '__main__':
                         help="Vocabulary and embeddings are written to this directory")
     parser.add_argument('--vocab_size', type=int, default=100000,
                             help="Number of words in the vocabulary")
-    parser.add_argument('--emb_dim', type=int, default=200,
+    parser.add_argument('--emb_dim', type=int, default=300,
                         help="Dimension of the learned embeddings")
     parser.add_argument('--epochs', type=int, default=10,
                         help="Number of training epochs")
