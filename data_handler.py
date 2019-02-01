@@ -5,7 +5,9 @@ import random
 import os
 import logging
 from six.moves import xrange
-
+import spacy
+spacy_en = spacy.load('en')
+import itertools
 
 
 class DataHandler(object):
@@ -13,15 +15,16 @@ class DataHandler(object):
     builds a dataset from . code is a modification of the Options class in the original code
     """
 
-    def __init__(self, fname, bs, ws, vocabulary_size, exp_path):
+    def __init__(self, fname, bs, ws, vocabulary_size, exp_path, tokenize_text):
 
         self.vocabulary_size = vocabulary_size
         self.batch_size = bs
         self.window_size = ws
         self.save_path = exp_path
+        self.tokenize_text = tokenize_text
 
         sents = self.read_sentences(fname)
-        words = self.read_words(fname)
+        words = list(itertools.chain.from_iterable(sents))
         data_or, self.count, self.vocab_words = self.build_dataset(sents, words, self.vocabulary_size)
         self.save_vocab()
 
@@ -38,15 +41,14 @@ class DataHandler(object):
         logging.info('Reading data sentence wise')
         with open(filename) as f:
             sent_data = f.read().split('\n')
-            sent_data = [x.strip().split() for x in sent_data]
+            sent_data = [self.tokenize(x.strip()) for x in sent_data]
         return sent_data
 
-    def read_words(self, filename):
-        logging.info('Reading data word wise')
-        with open(filename) as f:
-            data = f.read().split()
-        return data
-
+    def tokenize(self, text): # create a tokenizer function
+        if self.tokenize_text:
+            return [tok.text for tok in spacy_en.tokenizer(text)]
+        else:
+            return text.split()
 
     def build_dataset(self, sents, words, n_words):
         """Process raw inputs into a ."""
@@ -57,9 +59,9 @@ class DataHandler(object):
         logging.info('Building the vocabulary')
         c = 0
         for word, _ in count:
-            c +=1
-            if c%1000==0:
-                print(c)
+            c += 1
+            if c % 10000 == 0:
+                print('Processed {} words'.format(c))
             dictionary[word] = len(dictionary)
         data = list()
         unk_count = 0

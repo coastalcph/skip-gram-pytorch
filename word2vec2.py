@@ -20,9 +20,9 @@ import logging
 
 class word2vec:
 
-  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size,neg_sample_num):
+  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, tokenize_text=False):
       self.exp_path = exp_path
-      self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path)
+      self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path, tokenize_text=tokenize_text)
       self.embedding_dim = embedding_dim
       self.windows_size = windows_size
       self.vocabulary_size = np.min([vocabulary_size, len(self.data_handler.vocab_words)])
@@ -110,7 +110,7 @@ def main(args):
     set_up_logging(args.exp_path)
 
     wc = word2vec(exp_path=args.exp_path, inputfile=args.fname, vocabulary_size=args.vocab_size, embedding_dim=args.emb_dim,
-                  epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws,neg_sample_num=args.neg)
+                  epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws, neg_sample_num=args.neg, tokenize_text=args.tokenize_text)
     wc.train(lr=args.lr)
 
 
@@ -122,6 +122,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--fname', type=str, default='',
                             help="Text input file with one sentence per line")
+    parser.add_argument("--tokenize", action='store_true', dest="tokenize_text",
+                        help="Tokenize the text using the SpaCy tokenizer?")
     parser.add_argument('--exp_path', type=str, default='tmp',
                         help="Vocabulary and embeddings are written to this directory")
     parser.add_argument('--vocab_size', type=int, default=100000,
