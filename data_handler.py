@@ -3,6 +3,7 @@ import numpy as np
 import math
 import random
 import os
+import logging
 from six.moves import xrange
 
 
@@ -34,28 +35,26 @@ class DataHandler(object):
         self.process = True
 
     def read_sentences(self, filename):
-        print('Reading data sentence wise')
+        logging.info('Reading data sentence wise')
         with open(filename) as f:
             sent_data = f.read().split('\n')
             sent_data = [x.strip().split() for x in sent_data]
-        print('Done')
         return sent_data
 
     def read_words(self, filename):
-        print('Reading data word wise')
+        logging.info('Reading data word wise')
         with open(filename) as f:
             data = f.read().split()
-        print('Done')
         return data
 
 
     def build_dataset(self, sents, words, n_words):
         """Process raw inputs into a ."""
-        print('Computing word frequencies')
+        logging.info('Computing word frequencies')
         count = [['UNK', -1]]
         count.extend(collections.Counter(words).most_common(n_words - 1))
         dictionary = dict()
-        print('Building the vocabulary')
+        logging.info('Building the vocabulary')
         c = 0
         for word, _ in count:
             c +=1

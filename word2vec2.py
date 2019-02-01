@@ -13,6 +13,7 @@ import subprocess
 from inputdata import Options, scorefunction
 from data_handler import DataHandler
 from model import skipgram
+import logging
 
 
 
@@ -35,7 +36,7 @@ class word2vec:
       if torch.cuda.is_available():
           model.cuda()
       optimizer = optim.SGD(model.parameters(),lr=lr)
-      print('Starting training iterations')
+      logging.info('Starting training iterations')
       for epoch in range(self.epoch_num):
 
           start = time.time()
@@ -72,15 +73,15 @@ class word2vec:
                   end = time.time()
                   word_embeddings = model.input_embeddings()
                   sp1, sp2 = scorefunction(word_embeddings, self.exp_path)
-                  print('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f\r'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.data[0]),end="")
+                  logging.info('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.data[0]))
                   batch_new = batch_num
                   start = time.time()
 
               batch_num = batch_num + 1
 
 
-      print("Optimization Finished!")
-      print('Saving embeddings to {}'.format(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim))))
+      logging.info("Optimization Finished!")
+      logging.info('Saving embeddings to {}'.format(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim))))
       model.save_embedding(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim)), self.data_handler.vocab_words)
 
 def create_exp_dir(exp_path):
@@ -88,8 +89,26 @@ def create_exp_dir(exp_path):
         subprocess.Popen("mkdir %s" % exp_path, shell=True).wait()
     return
 
+def set_up_logging(exp_path):
+    ######################################################################################################
+    ################################# LOGGING ############################################################
+    ######################################################################################################
+    # create a logger and set parameters
+    logfile = os.path.join(exp_path, 'log.txt')
+    logFormatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
+    rootLogger = logging.getLogger()
+    rootLogger.setLevel(logging.DEBUG)
+    fileHandler = logging.FileHandler(logfile)
+    fileHandler.setFormatter(logFormatter)
+    rootLogger.addHandler(fileHandler)
+    consoleHandler = logging.StreamHandler()
+    consoleHandler.setFormatter(logFormatter)
+    rootLogger.addHandler(consoleHandler)
+
 def main(args):
     create_exp_dir(args.exp_path)
+    set_up_logging(args.exp_path)
+
     wc = word2vec(exp_path=args.exp_path, inputfile=args.fname, vocabulary_size=args.vocab_size, embedding_dim=args.emb_dim,
                   epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws,neg_sample_num=args.neg)
     wc.train(lr=args.lr)
