@@ -1,10 +1,4 @@
-import zipfile
-import collections
-import numpy as np
-
-import math
-import random
-
+import argparse
 
 import torch
 import torch.nn as nn
@@ -13,74 +7,122 @@ import torch.optim as optim
 import torch.nn.functional as Func
 from torch.optim.lr_scheduler import StepLR
 import time
-
+import os
+import numpy as np
+import subprocess
 from inputdata import Options, scorefunction
+from data_handler import DataHandler
 from model import skipgram
 
 
 
+
 class word2vec:
-  def __init__(self, inputfile, vocabulary_size=100000, embedding_dim=200, epoch_num=10, batch_size=16, windows_size=5,neg_sample_num=10):
-    self.op = Options(inputfile, vocabulary_size)
-    self.embedding_dim = embedding_dim
-    self.windows_size = windows_size
-    self.vocabulary_size = vocabulary_size
-    self.batch_size = batch_size
-    self.epoch_num = epoch_num
-    self.neg_sample_num = neg_sample_num
+
+  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size,neg_sample_num):
+      self.exp_path = exp_path
+      self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path)
+      self.embedding_dim = embedding_dim
+      self.windows_size = windows_size
+      self.vocabulary_size = np.min([vocabulary_size, len(self.data_handler.vocab_words)])
+      self.batch_size = batch_size
+      self.epoch_num = epoch_num
+      self.neg_sample_num = neg_sample_num
 
 
-  def train(self):
-    model = skipgram(self.vocabulary_size, self.embedding_dim)
-    if torch.cuda.is_available():
-      model.cuda()
-    optimizer = optim.SGD(model.parameters(),lr=0.2)
-    for epoch in range(self.epoch_num):
-      start = time.time()     
-      self.op.process = True
-      batch_num = 0
-      batch_new = 0
+  def train(self, lr):
+      model = skipgram(self.vocabulary_size, self.embedding_dim)
+      if torch.cuda.is_available():
+          model.cuda()
+      optimizer = optim.SGD(model.parameters(),lr=lr)
+      print('Starting training iterations')
+      for epoch in range(self.epoch_num):
 
-      while self.op.process:
-        pos_u, pos_v, neg_v = self.op.generate_batch(self.windows_size, self.batch_size, self.neg_sample_num)
-
-        pos_u = Variable(torch.LongTensor(pos_u))
-        pos_v = Variable(torch.LongTensor(pos_v))
-        neg_v = Variable(torch.LongTensor(neg_v))
-
-
-        if torch.cuda.is_available():
-          pos_u = pos_u.cuda()
-          pos_v = pos_v.cuda()
-          neg_v = neg_v.cuda()
-
-        optimizer.zero_grad()
-        loss = model(pos_u, pos_v, neg_v,self.batch_size)
-
-        loss.backward()
-   
-        optimizer.step()
-
-
-        if batch_num%30000 == 0:
-          torch.save(model.state_dict(), './tmp/skipgram.epoch{}.batch{}'.format(epoch,batch_num))
-
-        if batch_num%2000 == 0:
-          end = time.time()
-          word_embeddings = model.input_embeddings()
-          sp1, sp2 = scorefunction(word_embeddings)     
-          print('eporch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f\r'\
-           %(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.data[0]),end="")
-          batch_new = batch_num
           start = time.time()
-        batch_num = batch_num + 1 
-      print()
-    print("Optimization Finished!")
+          self.data_handler.process = True
+          batch_num = 0
+          batch_new = 0
 
-  
+          while self.data_handler.process:
+
+              pos_u, pos_v, neg_v = self.data_handler.generate_batch(self.neg_sample_num)
+
+              pos_u = Variable(torch.LongTensor(pos_u))
+              pos_v = Variable(torch.LongTensor(pos_v))
+              neg_v = Variable(torch.LongTensor(neg_v))
+
+
+              if torch.cuda.is_available():
+                  pos_u = pos_u.cuda()
+                  pos_v = pos_v.cuda()
+                  neg_v = neg_v.cuda()
+
+              optimizer.zero_grad()
+              loss = model(pos_u, pos_v, neg_v, self.batch_size)
+
+              loss.backward()
+   
+              optimizer.step()
+
+
+              if batch_num%30000 == 0:
+                  torch.save(model.state_dict(), os.path.join(self.exp_path, 'skipgram.epoch{}.batch{}'.format(epoch,batch_num)))
+
+              if batch_num%2000 == 0:
+                  end = time.time()
+                  word_embeddings = model.input_embeddings()
+                  sp1, sp2 = scorefunction(word_embeddings, self.exp_path)
+                  print('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f\r'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.data[0]),end="")
+                  batch_new = batch_num
+                  start = time.time()
+
+              batch_num = batch_num + 1
+
+
+      print("Optimization Finished!")
+      print('Saving embeddings to {}'.format(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim))))
+      model.save_embedding(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim)), self.data_handler.vocab_words)
+
+def create_exp_dir(exp_path):
+    if not os.path.isdir(exp_path):
+        subprocess.Popen("mkdir %s" % exp_path, shell=True).wait()
+    return
+
+def main(args):
+    create_exp_dir(args.exp_path)
+    wc = word2vec(exp_path=args.exp_path, inputfile=args.fname, vocabulary_size=args.vocab_size, embedding_dim=args.emb_dim,
+                  epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws,neg_sample_num=args.neg)
+    wc.train(lr=args.lr)
+
+
+
 if __name__ == '__main__':
-  wc= word2vec('text8')
-  wc.train()
+
+    parser = argparse.ArgumentParser(
+          description='Learning word embeddings via sgns')
+
+    parser.add_argument('--fname', type=str, default='',
+                            help="Text input file with one sentence per line")
+    parser.add_argument('--exp_path', type=str, default='tmp',
+                        help="Vocabulary and embeddings are written to this directory")
+    parser.add_argument('--vocab_size', type=int, default=100000,
+                            help="Number of words in the vocabulary")
+    parser.add_argument('--emb_dim', type=int, default=200,
+                        help="Dimension of the learned embeddings")
+    parser.add_argument('--epochs', type=int, default=10,
+                        help="Number of training epochs")
+    parser.add_argument('--bs', type=int, default=16,
+                        help="Batch size")
+    parser.add_argument('--ws', type=int, default=5,
+                        help="Window size")
+    parser.add_argument('--neg', type=int, default=10,
+                        help="Number of negative samples considered per input word in the negative sampling objective")
+    parser.add_argument('--lr', type=float, default=0.2,
+                        help="Learning rate")
+
+    args = parser.parse_args()
+    main(args)
+
 
 
 
