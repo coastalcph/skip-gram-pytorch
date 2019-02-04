@@ -25,6 +25,7 @@ class DataHandler(object):
 
         sents = self.read_sentences(fname)
         words = list(itertools.chain.from_iterable(sents))
+
         data_or, self.count, self.vocab_words = self.build_dataset(sents, words, self.vocabulary_size)
         self.save_vocab()
 

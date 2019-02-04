@@ -11,6 +11,7 @@ import os
 import numpy as np
 import subprocess
 from inputdata import Options, scorefunction
+from utils import load_embeddings_from_file
 from data_handler import DataHandler
 from model import skipgram
 import logging
@@ -18,9 +19,10 @@ import logging
 
 
 
+
 class word2vec:
 
-  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, tokenize_text=False):
+  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, pretrained_embeddings, tokenize_text=False):
       self.exp_path = exp_path
       self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path, tokenize_text=tokenize_text)
       self.embedding_dim = embedding_dim
@@ -29,10 +31,37 @@ class word2vec:
       self.batch_size = batch_size
       self.epoch_num = epoch_num
       self.neg_sample_num = neg_sample_num
+      if pretrained_embeddings != '':
+          self.pretrained_embeddings = self.get_pretrained_embeddings(pretrained_embeddings)
+      else:
+          self.pretrained_embeddings = None
+
+  def get_pretrained_embeddings(self, fname):
+      '''
+      loads the pretrained embeddings from file and sorts them such that they correspond to the indexes in the dataset
+      :param fname:
+      :return:
+      '''
+      logging.info('Loading pretrained embeddings from {}'.format(fname))
+      embeds, word2id, id2word = load_embeddings_from_file(fname)
+
+      sorted_embeds = np.zeros((self.vocabulary_size, self.embedding_dim))
+      # initial embedding for tokens that are not contained in the pretrained embeddings
+      initrange = 0.5 / self.embedding_dim
+      unk_embedding = np.random.uniform(-initrange, initrange,self.embedding_dim)
+
+      for idx, word in self.data_handler.vocab_words.items():
+          if word in word2id.keys():
+              sorted_embeds[idx,:] = embeds[word2id[word],:]
+          else:
+              sorted_embeds[idx, :] = unk_embedding
+              logging.info('No pretrained embedding for word {}'.format(word))
+      return sorted_embeds
+
 
 
   def train(self, lr):
-      model = skipgram(self.vocabulary_size, self.embedding_dim)
+      model = skipgram(self.vocabulary_size, self.embedding_dim, self.pretrained_embeddings)
       if torch.cuda.is_available():
           model.cuda()
       optimizer = optim.SGD(model.parameters(),lr=lr)
@@ -110,7 +139,8 @@ def main(args):
     set_up_logging(args.exp_path)
 
     wc = word2vec(exp_path=args.exp_path, inputfile=args.fname, vocabulary_size=args.vocab_size, embedding_dim=args.emb_dim,
-                  epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws, neg_sample_num=args.neg, tokenize_text=args.tokenize_text)
+                  epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws, neg_sample_num=args.neg, tokenize_text=args.tokenize_text,
+                  pretrained_embeddings=args.pretrained_embeddings)
     wc.train(lr=args.lr)
 
 
@@ -140,6 +170,8 @@ if __name__ == '__main__':
                         help="Number of negative samples considered per input word in the negative sampling objective")
     parser.add_argument('--lr', type=float, default=0.2,
                         help="Learning rate")
+    parser.add_argument('--pretrained_embeddings', type=str, default='',
+                        help="Path to pretrained embeddings used to initialize the embeddings of the input words. If not specified, embeddings are learned from scratch")
 
     args = parser.parse_args()
     main(args)
