@@ -22,9 +22,9 @@ import logging
 
 class word2vec:
 
-  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, pretrained_embeddings, tokenize_text=False):
+  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, pretrained_embeddings,  init_scheme, tokenize_text=False):
       self.exp_path = exp_path
-      self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path, tokenize_text=tokenize_text)
+      self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path,  tokenize_text=tokenize_text)
       self.embedding_dim = embedding_dim
       self.windows_size = windows_size
       self.vocabulary_size = np.min([vocabulary_size, len(self.data_handler.vocab_words)])
@@ -35,6 +35,7 @@ class word2vec:
           self.pretrained_embeddings = self.get_pretrained_embeddings(pretrained_embeddings)
       else:
           self.pretrained_embeddings = None
+      self.init_scheme = init_scheme
 
   def get_pretrained_embeddings(self, fname):
       '''
@@ -61,7 +62,7 @@ class word2vec:
 
 
   def train(self, lr):
-      model = skipgram(self.vocabulary_size, self.embedding_dim, self.pretrained_embeddings)
+      model = skipgram(self.vocabulary_size, self.embedding_dim, self.pretrained_embeddings, self.init_scheme)
       if torch.cuda.is_available():
           model.cuda()
       optimizer = optim.SGD(model.parameters(),lr=lr)
@@ -140,7 +141,7 @@ def main(args):
 
     wc = word2vec(exp_path=args.exp_path, inputfile=args.fname, vocabulary_size=args.vocab_size, embedding_dim=args.emb_dim,
                   epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws, neg_sample_num=args.neg, tokenize_text=args.tokenize_text,
-                  pretrained_embeddings=args.pretrained_embeddings)
+                  pretrained_embeddings=args.pretrained_embeddings, init_scheme=args.init_scheme)
     wc.train(lr=args.lr)
 
 
@@ -172,6 +173,8 @@ if __name__ == '__main__':
                         help="Learning rate")
     parser.add_argument('--pretrained_embeddings', type=str, default='',
                         help="Path to pretrained embeddings used to initialize the embeddings of the input words. If not specified, embeddings are learned from scratch")
+    parser.add_argument('--init_scheme', type=str, default='in', choices=['in', 'in_out'],
+                        help="Specifies which embeddings are initialized using the pretrained embeddings. By default only the input embeddings.")
 
     args = parser.parse_args()
     main(args)

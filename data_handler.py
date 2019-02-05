@@ -15,13 +15,14 @@ class DataHandler(object):
     builds a dataset from . code is a modification of the Options class in the original code
     """
 
-    def __init__(self, fname, bs, ws, vocabulary_size, exp_path, tokenize_text):
+    def __init__(self, fname, bs, ws, vocabulary_size, exp_path,  tokenize_text):
 
         self.vocabulary_size = vocabulary_size
         self.batch_size = bs
         self.window_size = ws
         self.save_path = exp_path
         self.tokenize_text = tokenize_text
+
 
         sents = self.read_sentences(fname)
         words = list(itertools.chain.from_iterable(sents))
