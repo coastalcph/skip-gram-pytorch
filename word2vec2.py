@@ -173,7 +173,7 @@ if __name__ == '__main__':
                         help="Learning rate")
     parser.add_argument('--pretrained_embeddings', type=str, default='',
                         help="Path to pretrained embeddings used to initialize the embeddings of the input words. If not specified, embeddings are learned from scratch")
-    parser.add_argument('--init_scheme', type=str, default='in', choices=['in', 'in_out'],
+    parser.add_argument('--init_scheme', type=str, default='in', choices=['in', 'out', 'in_out'],
                         help="Specifies which embeddings are initialized using the pretrained embeddings. By default only the input embeddings.")
 
     args = parser.parse_args()

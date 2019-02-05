@@ -14,14 +14,17 @@ class skipgram(nn.Module):
     self.init_emb(pretrained_embeddings, init_scheme)
 
   def init_emb(self, pretrained_embeddings, init_scheme):
+    initrange = 0.5 / self.embedding_dim
     if pretrained_embeddings is not None and init_scheme =="in":
       self.u_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
       self.v_embeddings.weight.data.uniform_(-0, 0)
+    elif pretrained_embeddings is not None and init_scheme == "out":
+      self.u_embeddings.weight.data.uniform_(-initrange, initrange)
+      self.v_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
     elif pretrained_embeddings is not None and init_scheme =="in_out":
       self.u_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
       self.v_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
     else:
-      initrange = 0.5 / self.embedding_dim
       self.u_embeddings.weight.data.uniform_(-initrange, initrange)
       self.v_embeddings.weight.data.uniform_(-0, 0)
 
