@@ -1,5 +1,4 @@
 import argparse
-
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -15,9 +14,7 @@ from utils import load_embeddings_from_file
 from data_handler import DataHandler
 from model import skipgram
 import logging
-
-
-
+import tensorboard_logger as tb_logger
 
 
 class word2vec:
@@ -90,6 +87,7 @@ class word2vec:
 
               optimizer.zero_grad()
               loss = model(pos_u, pos_v, neg_v, self.batch_size)
+              tb_logger.log_value("loss", loss, step=batch_num)
 
               loss.backward()
    
@@ -104,6 +102,8 @@ class word2vec:
                   word_embeddings = model.input_embeddings()
                   sp1, sp2 = scorefunction(word_embeddings, self.exp_path)
                   logging.info('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.item()))
+                  tb_logger.log_value("ws353", sp1, step=batch_num)
+                  tb_logger.log_value("rare", sp2, step=batch_num)
                   batch_new = batch_num
                   start = time.time()
 
@@ -134,6 +134,7 @@ def set_up_logging(exp_path):
     consoleHandler = logging.StreamHandler()
     consoleHandler.setFormatter(logFormatter)
     rootLogger.addHandler(consoleHandler)
+    tb_logger.configure(os.path.join(exp_path, "tensorboard_log"), flush_secs=5)
 
 def main(args):
     create_exp_dir(args.exp_path)
