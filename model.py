@@ -17,6 +17,9 @@ class skipgram(nn.Module):
     if pretrained_embeddings is not None and init_scheme =="in":
       self.u_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
       self.v_embeddings.weight.data.normal_(0, 0.1)
+    elif pretrained_embeddings is not None and init_scheme == "out":
+      self.u_embeddings.weight.data.normal_(0, 0.1)
+      self.v_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
     elif pretrained_embeddings is not None and init_scheme =="in_out":
       self.u_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
       self.v_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
