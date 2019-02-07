@@ -61,7 +61,7 @@ class skipgram(nn.Module):
 
 class skipgram_visual_gated(nn.Module):
 
-  def __init__(self, vocab_size, num_imgs, embedding_dim, img_dim, visual_data):
+  def __init__(self, vocab_size, embedding_dim, img_dim):
     """
 
     :param vocab_size: number of words in the vocabulary
@@ -71,52 +71,45 @@ class skipgram_visual_gated(nn.Module):
     :param visual_data: array of size num_imgs x img_dim
     """
     super(skipgram_visual_gated, self).__init__()
-    self.u_embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
-    self.v_embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
-
-    self.visual_data = nn.Embedding(num_imgs, img_dim, sparse=True)
-
-    # the gate parameters W_g to compute sigmoid(input_embedding*W_gate) comp_mul visual_data
-    self.gate_params = nn.Linear(embedding_dim, embedding_dim, bias=True)
-
-    # parameters to reduce dimensionality of the visual data as activation(img_dim, emb_dim)
-    self.dim_red = nn.Linear(img_dim, embedding_dim, bias=True)
-
     self.embedding_dim = embedding_dim
     self.img_dim = img_dim
+
+    self.u_embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
+    self.v_embeddings = nn.Embedding(vocab_size, embedding_dim, sparse=True)
+    # the gate parameters W_g to compute sigmoid(input_embedding*W_gate) comp_mul visual_data
+    self.gate_params = nn.Linear(embedding_dim, embedding_dim, bias=True)
+    # parameters to reduce dimensionality of the visual data as activation(img_dim, emb_dim)
+    self.img_embedding = nn.Linear(img_dim, embedding_dim, bias=True)
+
     self.init_emb()
     self.init_gate()
-    self.set_visual_data()
 
   def init_emb(self):
     initrange = 0.5 / self.embedding_dim
     self.u_embeddings.weight.data.uniform_(-initrange, initrange)
     self.v_embeddings.weight.data.uniform_(-0, 0)
+    self.img_embedding.weight.data.normal_(0, 0.1)
 
   def init_gate(self):
-    self.gate_params.weight.data.uniform_(-0, 0)
-
-  def set_visual_data(self, visual_data):
-    self.visual_data.weight = torch.nn.Parameter(visual_data)
-
+    self.gate_params.weight.data.normal_(0, 0.1)
 
   def forward(self, u_pos, v_pos, v_neg, visual_pos, batch_size):
+    import ipdb
+    ipdb.set_trace()
     embed_u = self.u_embeddings(u_pos)
     embed_v = self.v_embeddings(v_pos)
+    visual_embed = F.relu(self.img_embedding(visual_pos))
 
-    visual_data = self.visual_data(visual_pos)
-
-    visual_data_reduced = F.relu(self.dim_red(visual_data))
     # gate the visual information as sigmoid(W_gate * embed_v) componentwise visual
-    gate = torch.sigmoid(self.gate_params(embed_v))
-    gated_visual = gate * visual_data_reduced
-    score = torch.mul(embed_u, torch.add(embed_v, gated_visual))
-    score = torch.sum(score, dim=1)
+    gate = torch.sigmoid(self.gate_params(embed_u))
+    gated_visual_embed = gate * visual_embed
+    joint_embed = torch.mul(embed_u, torch.add(embed_u, gated_visual_embed))
+    score = torch.sum(joint_embed, dim=1)
     log_target = F.logsigmoid(score).squeeze()
 
     neg_embed_v = self.v_embeddings(v_neg)
 
-    neg_score = torch.bmm(neg_embed_v, embed_u.unsqueeze(2)).squeeze()
+    neg_score = torch.bmm(neg_embed_v, joint_embed.unsqueeze(2)).squeeze()
     neg_score = torch.sum(neg_score, dim=1)
     sum_log_sampled = F.logsigmoid(-1 * neg_score).squeeze()
 
@@ -140,15 +133,13 @@ if __name__=="__main__":
     u_pos = np.array([0, 1, 2])
     v_pos = np.array([0, 1, 2])
     v_neg = np.random.choice([0, 1, 2, 3, 4, 5], size=(3, 3))
-    visual_pos = np.array([0, 0, 1])
+    visual_pos = np.arange(20.0)
 
     u_pos = Variable(torch.LongTensor(u_pos))
     v_pos = Variable(torch.LongTensor(v_pos))
     v_neg = Variable(torch.LongTensor(v_neg))
-    visual_pos = Variable(torch.LongTensor(visual_pos))
+    visual_pos = Variable(torch.FloatTensor(visual_pos))
 
-    svg = skipgram_visual_gated(vocab_size=100, num_imgs=200, embedding_dim=10, img_dim=20)
+    svg = skipgram_visual_gated(vocab_size=100, embedding_dim=10, img_dim=20)
 
     svg.forward(u_pos=u_pos, v_pos=v_pos, v_neg=v_neg, visual_pos=visual_pos, batch_size=5)
-
-
