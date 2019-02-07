@@ -19,7 +19,7 @@ import tensorboard_logger as tb_logger
 
 class word2vec:
 
-  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, pretrained_embeddings,  init_scheme, tokenize_text=False):
+  def __init__(self, exp_path, inputfile, vocabulary_size, embedding_dim, epoch_num, batch_size, windows_size, neg_sample_num, pretrained_embeddings,  init_scheme, tokenize_text=False, rho_step=5000):
       self.exp_path = exp_path
       self.data_handler = DataHandler(fname=inputfile, bs=batch_size, ws=windows_size, vocabulary_size=vocabulary_size, exp_path=self.exp_path,  tokenize_text=tokenize_text)
       self.embedding_dim = embedding_dim
@@ -33,6 +33,7 @@ class word2vec:
       else:
           self.pretrained_embeddings = None
       self.init_scheme = init_scheme
+      self.rho_step = rho_step
 
   def get_pretrained_embeddings(self, fname):
       '''
@@ -59,6 +60,7 @@ class word2vec:
 
 
   def train(self, lr):
+      best_rho = 0.
       model = skipgram(self.vocabulary_size, self.embedding_dim, self.pretrained_embeddings, self.init_scheme)
       if torch.cuda.is_available():
           model.cuda()
@@ -93,17 +95,25 @@ class word2vec:
    
               optimizer.step()
 
+              if batch_num % 1000 == 0:
+                  end = time.time()
+                  logging.info('epoch %2d batch %5d: loss = %4.3f (%4.2f pair/s)'%(epoch, batch_num, loss.item(), (batch_num-batch_new)*self.batch_size/(end-start)))
+                  batch_new = batch_num
+                  start = time.time()
 
-              if batch_num%30000 == 0:
-                  torch.save(model.state_dict(), os.path.join(self.exp_path, 'skipgram.epoch{}.batch{}'.format(epoch,batch_num)))
-
-              if batch_num%2000 == 0:
+              if batch_num % self.rho_step == 0:
                   end = time.time()
                   word_embeddings = model.input_embeddings()
                   sp1, sp2 = scorefunction(word_embeddings, self.exp_path)
-                  logging.info('epoch,batch=%2d %5d: sp=%1.3f %1.3f  pair/sec = %4.2f loss=%4.3f'%(epoch, batch_num, sp1, sp2, (batch_num-batch_new)*self.batch_size/(end-start),loss.item()))
                   tb_logger.log_value("ws353", sp1, step=batch_num)
                   tb_logger.log_value("rare", sp2, step=batch_num)
+                  if sp1 > best_rho:
+                      # WARNING: We probably should not be saving the model parameters based on the best correlation but loss on a held-out set.
+                      best_rho = sp1
+                      torch.save(model.state_dict(), os.path.join(self.exp_path, 'skipgram.rho{}'.format(best_rho)))
+                      logging.info('epoch %2d batch %5d: loss = %4.3f, ws353 = %1.3f, rare = %1.3f (New best, saving.)'%(epoch, batch_num, loss.item(), sp1, sp2))
+                  else:
+                      logging.info('epoch %2d batch %5d: loss = %4.3f, ws353 = %1.3f, rare = %1.3f'%(epoch, batch_num, loss.item(), sp1, sp2))
                   batch_new = batch_num
                   start = time.time()
 
@@ -111,8 +121,6 @@ class word2vec:
 
 
       logging.info("Optimization Finished!")
-      logging.info('Saving embeddings to {}'.format(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim))))
-      model.save_embedding(os.path.join(self.exp_path, 'sgns{}.txt'.format(self.embedding_dim)), self.data_handler.vocab_words)
 
 def create_exp_dir(exp_path):
     if not os.path.isdir(exp_path):
@@ -142,7 +150,7 @@ def main(args):
 
     wc = word2vec(exp_path=args.exp_path, inputfile=args.fname, vocabulary_size=args.vocab_size, embedding_dim=args.emb_dim,
                   epoch_num=args.epochs, batch_size=args.bs, windows_size=args.ws, neg_sample_num=args.neg, tokenize_text=args.tokenize_text,
-                  pretrained_embeddings=args.pretrained_embeddings, init_scheme=args.init_scheme)
+                  pretrained_embeddings=args.pretrained_embeddings, init_scheme=args.init_scheme, rho_step=args.rho_step)
     wc.train(lr=args.lr)
 
 
@@ -176,6 +184,7 @@ if __name__ == '__main__':
                         help="Path to pretrained embeddings used to initialize the embeddings of the input words. If not specified, embeddings are learned from scratch")
     parser.add_argument('--init_scheme', type=str, default='in', choices=['in', 'out', 'in_out'],
                         help="Specifies which embeddings are initialized using the pretrained embeddings. By default only the input embeddings.")
+    parser.add_argument("--rho_step", type=int, default=5000, help="Evaluate correlation every rho_step updates")
 
     args = parser.parse_args()
     main(args)
