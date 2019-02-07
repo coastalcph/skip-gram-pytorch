@@ -153,7 +153,7 @@ class DataHandler(object):
         frequency = np.array(count) / sum(count)
         P = dict()
         for idx, x in enumerate(frequency):
-            y = (math.sqrt(x / 0.001) + 1) * 0.001 / x
+            y = (math.sqrt(x / 0.001) + 1) * 0.001 / (x + 1e-8)
             P[idx] = y
         subsampled_data = list()
         for sent in data:
