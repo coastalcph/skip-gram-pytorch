@@ -15,14 +15,17 @@ class DataHandler(object):
     builds a dataset from . code is a modification of the Options class in the original code
     """
 
-    def __init__(self, fname, bs, ws, vocabulary_size, exp_path,  tokenize_text):
+    def __init__(self, fname, bs, ws, vocabulary_size, exp_path, tokenize_text, iname=None):
 
         self.vocabulary_size = vocabulary_size
         self.batch_size = bs
         self.window_size = ws
         self.save_path = exp_path
         self.tokenize_text = tokenize_text
-
+        if iname is not None:
+            self.images = np.load(open(iname, 'rb'))
+        else:
+            self.images = None
 
         sents = self.read_sentences(fname)
         words = list(itertools.chain.from_iterable(sents))
@@ -101,15 +104,18 @@ class DataHandler(object):
         :param count:
         :return:
         """
+        images = []
         while len(self.buffer) < self.batch_size:
             sent = self.data[self.sent_index]
-            self.sent_index += 1
-
             contexts, labels = self.contexts_for_sentence(sent)
 
             for i, label in enumerate(labels):
-                self.buffer += zip(contexts[i], [label] * len(labels))
+                if self.images is not None:
+                    self.buffer += zip(contexts[i], [label] * len(labels), len(labels) * [self.images[int(np.floor(self.sent_index / 5))]])
+                else:
+                    self.buffer += zip(contexts[i], [label] * len(labels))
 
+            self.sent_index += 1
             if self.sent_index >= len(self.data):
                 self.sent_index = 0
                 self.process=False
@@ -117,11 +123,19 @@ class DataHandler(object):
         pos_u = []
         pos_v = []
         for i in range(self.batch_size):
-            c, l = self.buffer.pop(0)
+            if self.images is not None:
+                c, l, v = self.buffer.pop(0)
+            else:
+                c, l = self.buffer.pop(0)
             pos_u.append(c)
             pos_v.append(l)
+            if self.images is not None:
+                images.append(v)
         neg_v = np.random.choice(self.sample_table, size=(self.batch_size, neg))
-        return np.array(pos_u), np.array(pos_v) , neg_v
+        if self.images is not None:
+            return np.array(pos_u), np.array(pos_v) , neg_v, np.array(images)
+        else:
+            return np.array(pos_u), np.array(pos_v) , neg_v
 
     def save_vocab(self):
         with open(os.path.join(self.save_path, "vocab.txt"), "w") as f:
@@ -165,9 +179,18 @@ class DataHandler(object):
         return subsampled_data
 
 if __name__=="__main__":
-    fname = 'fakedata.txt'
-    dh = DataHandler(fname=fname, bs=3, ws=3, vocabulary_size=100)
+    fname = '/home/lvx122/data/coco/text/train_captions_notabs.txt'
+    iname = '/home/lvx122/data/coco/imgfeats/train2014-resnet50-avgpool.npy'
+    dh = DataHandler(fname=fname, bs=3, ws=3, vocabulary_size=100, exp_path='.', tokenize_text=False)
     for i in range(20):
-        print(dh.data[dh.sent_index])
-        v, u = dh.generate_batch()
-        print('{}\n{}\n{}\n\n'.format(i, u, v))
+        v, u, neg = dh.generate_batch(3)
+        print(i)
+        print(u)
+        print(v)
+    dh = DataHandler(fname=fname, bs=3, ws=3, vocabulary_size=100, exp_path='.', tokenize_text=False, iname=iname)
+    for i in range(20):
+        v, u, neg, vis = dh.generate_batch(3)
+        print(i)
+        print(u)
+        print(v)
+        print(vis)
