@@ -81,7 +81,6 @@ class word2vec:
               pos_v = Variable(torch.LongTensor(pos_v))
               neg_v = Variable(torch.LongTensor(neg_v))
 
-
               if torch.cuda.is_available():
                   pos_u = pos_u.cuda()
                   pos_v = pos_v.cuda()
@@ -89,15 +88,13 @@ class word2vec:
 
               optimizer.zero_grad()
               loss = model(pos_u, pos_v, neg_v, self.batch_size)
-              tb_logger.log_value("loss", loss, step=batch_num)
-
               loss.backward()
-   
               optimizer.step()
 
               if batch_num % 1000 == 0:
                   end = time.time()
                   logging.info('epoch %2d batch %5d: loss = %4.3f (%4.2f pair/s)'%(epoch, batch_num, loss.item(), (batch_num-batch_new)*self.batch_size/(end-start)))
+                  tb_logger.log_value("loss", loss, step=batch_num)
                   batch_new = batch_num
                   start = time.time()
 
