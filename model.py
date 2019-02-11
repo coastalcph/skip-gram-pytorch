@@ -94,17 +94,17 @@ class skipgram_visual_gated(nn.Module):
     self.gate_params.weight.data.normal_(0, 0.1)
 
   def forward(self, u_pos, v_pos, v_neg, visual_pos, batch_size):
-    import ipdb
-    ipdb.set_trace()
     embed_u = self.u_embeddings(u_pos)
     embed_v = self.v_embeddings(v_pos)
-    visual_embed = F.relu(self.img_embedding(visual_pos))
+    visual_embed = self.img_embedding(visual_pos)
+    visual_embed = self.l2norm(visual_embed)
 
     # gate the visual information as sigmoid(W_gate * embed_v) componentwise visual
     gate = torch.sigmoid(self.gate_params(embed_u))
     gated_visual_embed = gate * visual_embed
-    joint_embed = torch.mul(embed_u, torch.add(embed_u, gated_visual_embed))
-    score = torch.sum(joint_embed, dim=1)
+    joint_embed = torch.add(embed_u, gated_visual_embed)
+    score = torch.mul(joint_embed, embed_v)
+    score = torch.sum(score, dim=1)
     log_target = F.logsigmoid(score).squeeze()
 
     neg_embed_v = self.v_embeddings(v_neg)
@@ -127,6 +127,13 @@ class skipgram_visual_gated(nn.Module):
       word = id2word(idx)
       embed = ' '.join(embeds[idx])
       fo.write(word + ' ' + embed + '\n')
+
+  def l2norm(self, X):
+    """L2-normalize columns of X
+    """
+    norm = torch.pow(X, 2).sum(dim=1, keepdim=True).sqrt()
+    X = torch.div(X, norm)
+    return X
 
 
 if __name__=="__main__":
