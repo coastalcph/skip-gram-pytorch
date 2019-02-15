@@ -92,6 +92,31 @@ class skipgram_visual_gated(nn.Module):
 
   def init_gate(self):
     self.gate_params.weight.data.normal_(0, 0.1)
+    nn.init.constant_(self.gate_params.bias, 0)
+
+  def forward_(self, u_pos, v_pos, v_neg, visual_pos, batch_size):
+    embed_u = self.u_embeddings(u_pos)
+    embed_v = self.v_embeddings(v_pos)
+    visual_embed = self.img_embedding(visual_pos)
+    visual_embed = self.l2norm(visual_embed)
+
+    # gate the visual information as sigmoid(W_gate * embed_v) componentwise visual
+    gate = torch.sigmoid(self.gate_params(embed_u))
+    gated_visual_embed = gate * visual_embed
+    joint_embed = torch.add(embed_u, gated_visual_embed)
+    score = torch.mul(joint_embed, embed_v)
+    score = torch.sum(score, dim=1)
+    log_target = F.logsigmoid(score).squeeze()
+
+    neg_embed_v = self.v_embeddings(v_neg)
+
+    neg_score = torch.bmm(neg_embed_v, joint_embed.unsqueeze(2)).squeeze()
+    neg_score = torch.sum(neg_score, dim=1)
+    sum_log_sampled = F.logsigmoid(-1 * neg_score).squeeze()
+
+    loss = log_target + sum_log_sampled
+
+    return embed_u, gate, visual_embed
 
   def forward(self, u_pos, v_pos, v_neg, visual_pos, batch_size):
     embed_u = self.u_embeddings(u_pos)
