@@ -15,7 +15,7 @@ class DataHandler(object):
     builds a dataset from . code is a modification of the Options class in the original code
     """
 
-    def __init__(self, fname, bs, ws, vocabulary_size, exp_path, tokenize_text, iname=None):
+    def __init__(self, fname, bs, ws, vocabulary_size, exp_path, tokenize_text, iname=None, dictionary=None, counts=None):
 
         self.vocabulary_size = vocabulary_size
         self.batch_size = bs
@@ -27,11 +27,16 @@ class DataHandler(object):
         else:
             self.images = None
 
-        sents = self.read_sentences(fname)
-        words = list(itertools.chain.from_iterable(sents))
+        self.sents = self.read_sentences(fname)
+        words = list(itertools.chain.from_iterable(self.sents))
 
-        data_or, self.count, self.vocab_words = self.build_dataset(sents, words, self.vocabulary_size)
-        self.save_vocab()
+        data_or, self.count, self.vocab_words = self.build_dataset(self.sents, words, self.vocabulary_size, dictionary)
+
+        if counts is not None:
+            #  If we are building a data handler for some held-out data, 
+            #  we want to use the counts from the training data set.
+            logging.info('Using existing counts with {} words'.format(len(counts)))
+            self.count = counts
 
         self.data = self.subsampling(data_or)
 
@@ -55,19 +60,25 @@ class DataHandler(object):
         else:
             return text.split()
 
-    def build_dataset(self, sents, words, n_words):
-        """Process raw inputs into a ."""
-        logging.info('Computing word frequencies')
+    def build_dataset(self, sents, words, n_words, dictionary=None):
+        """Process raw inputs into a dictionary and count list."""
         count = [['UNK', -1]]
-        count.extend(collections.Counter(words).most_common(n_words - 1))
-        dictionary = dict()
-        logging.info('Building the vocabulary')
-        c = 0
-        for word, _ in count:
-            c += 1
-            if c % 10000 == 0:
-                print('Processed {} words'.format(c))
-            dictionary[word] = len(dictionary)
+        if dictionary == None:
+            # Only estimate the dictionary if we are not given an existing
+            # dictionary. We will get an existing dictonary with its own
+            # counts if we are currently building a dataset for unseen data.
+            logging.info('Computing word frequencies')
+            count.extend(collections.Counter(words).most_common(n_words - 1))
+            dictionary = dict()
+            logging.info('Building the vocabulary')
+            c = 0
+            for word, _ in count:
+                c += 1
+                if c % 10000 == 0:
+                    print('Processed {} words'.format(c))
+                dictionary[word] = len(dictionary)
+        else:
+            logging.info('Using existing dictionary with {} words'.format(len(dictionary)))
         data = list()
         unk_count = 0
         for sent in sents:
@@ -96,7 +107,6 @@ class DataHandler(object):
             contexts.append(prev_words + subseq_words)
             labels.append(input_word)
         return contexts, labels
-
 
     def generate_batch(self, neg):
         """
@@ -155,13 +165,6 @@ class DataHandler(object):
             sample_table += [idx] * int(x)
         return np.array(sample_table)
 
-    def weight_table(self):
-        count = [ele[1] for ele in self.count]
-        pow_frequency = np.array(count) ** 0.75
-        power = sum(pow_frequency)
-        ratio = pow_frequency / power
-        return np.array(ratio)
-
     def subsampling(self, data):
         count = [ele[1] for ele in self.count]
         frequency = np.array(count) / sum(count)
@@ -178,19 +181,19 @@ class DataHandler(object):
             subsampled_data.append(subsampled_sent)
         return subsampled_data
 
+
 if __name__=="__main__":
-    fname = '/home/lvx122/data/coco/text/train_captions_notabs.txt'
-    iname = '/home/lvx122/data/coco/imgfeats/train2014-resnet50-avgpool.npy'
-    dh = DataHandler(fname=fname, bs=3, ws=3, vocabulary_size=100, exp_path='.', tokenize_text=False)
-    for i in range(20):
-        v, u, neg = dh.generate_batch(3)
-        print(i)
-        print(u)
-        print(v)
-    dh = DataHandler(fname=fname, bs=3, ws=3, vocabulary_size=100, exp_path='.', tokenize_text=False, iname=iname)
-    for i in range(20):
-        v, u, neg, vis = dh.generate_batch(3)
-        print(i)
-        print(u)
-        print(v)
+    fname = '/home/lvx122/data/coco/text/val_en_captions.txt'
+    iname = '/home/lvx122/data/coco/imgfeats/val-resnet50-avgpool.npy'
+    dh = DataHandler(fname=fname, bs=15, ws=2, vocabulary_size=10000, exp_path='.', tokenize_text=False)
+    i2w = dict(zip(dh.vocab_words.values(), dh.vocab_words.keys()))
+    for i in range(1):
+        u, v, neg = dh.generate_batch(2)
+        print([dh.vocab_words[x] for x in u])
+        print([dh.vocab_words[x] for x in v])
+    dh = DataHandler(fname=fname, bs=3, ws=5, vocabulary_size=100, exp_path='.', tokenize_text=False, iname=iname)
+    for i in range(1):
+        u, v, neg, vis = dh.generate_batch(3)
+        print([dh.vocab_words[x] for x in u])
+        print([dh.vocab_words[x] for x in v])
         print(vis)
