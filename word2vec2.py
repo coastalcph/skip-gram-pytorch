@@ -37,7 +37,7 @@ class word2vec:
       self.neg_sample_num = neg_sample_num
 
       if pretrained_embeddings != '':
-          self.pretrained_embeddings = get_pretrained_embeddings(pretrained_embeddings, data_handler.vocab_words.items(), self.embedding_dim, self.vocabulary_size)
+          self.pretrained_embeddings = get_pretrained_embeddings(pretrained_embeddings, self.data_handler.vocab_words.items(), self.embedding_dim, self.vocabulary_size)
       else:
           self.pretrained_embeddings = None
 
@@ -138,7 +138,7 @@ class visword2vec:
       self.neg_sample_num = neg_sample_num
 
       if pretrained_embeddings != '':
-          self.pretrained_embeddings = get_pretrained_embeddings(pretrained_embeddings, data_handler.vocab_words.items(), self.embedding_dim, self.vocabulary_size)
+          self.pretrained_embeddings = get_pretrained_embeddings(pretrained_embeddings, self.data_handler.vocab_words.items(), self.embedding_dim, self.vocabulary_size)
       else:
           self.pretrained_embeddings = None
 
@@ -150,7 +150,7 @@ class visword2vec:
   def train(self, lr):
       best_rho = 0.
       best_val_loss = 1e6
-      model = skipgram_visual_gated(self.vocabulary_size, self.embedding_dim, self.img_dim. self.pretrained_embeddings, self.init_scheme)
+      model = skipgram_visual_gated(self.vocabulary_size, self.embedding_dim, self.img_dim, self.pretrained_embeddings, self.init_scheme)
       if torch.cuda.is_available():
           model.cuda()
       optimizer = optim.Adagrad(model.parameters(),lr=lr)
