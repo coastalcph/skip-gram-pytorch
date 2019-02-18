@@ -61,7 +61,7 @@ class skipgram(nn.Module):
 
 class skipgram_visual_gated(nn.Module):
 
-  def __init__(self, vocab_size, embedding_dim, img_dim):
+  def __init__(self, vocab_size, embedding_dim, img_dim, pretrained_embeddings, init_scheme):
     """
 
     :param vocab_size: number of words in the vocabulary
@@ -81,14 +81,26 @@ class skipgram_visual_gated(nn.Module):
     # parameters to reduce dimensionality of the visual data as activation(img_dim, emb_dim)
     self.img_embedding = nn.Linear(img_dim, embedding_dim, bias=True)
 
-    self.init_emb()
+    self.init_emb(pretrained_embeddings, init_scheme)
     self.init_gate()
 
-  def init_emb(self):
-    initrange = 0.5 / self.embedding_dim
-    self.u_embeddings.weight.data.uniform_(-initrange, initrange)
-    self.v_embeddings.weight.data.uniform_(-0, 0)
+  def init_emb(self, pretrained_embeddings, init_scheme):
+    if pretrained_embeddings is not None and init_scheme == "in":
+      self.u_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
+      self.v_embeddings.weight.data.uniform_(-0, 0)
+    elif pretrained_embeddings is not None and init_scheme == "out":
+      self.u_embeddings.weight.data.normal_(0, 0.1)
+      self.v_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
+    elif pretrained_embeddings is not None and init_scheme == "in_out":
+      self.u_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
+      self.v_embeddings.weight = torch.nn.Parameter(torch.Tensor(pretrained_embeddings))
+    else:
+      initrange = 0.5 / self.embedding_dim
+      self.u_embeddings.weight.data.uniform_(-initrange, initrange)
+      self.v_embeddings.weight.data.uniform_(-0, 0)
     self.img_embedding.weight.data.normal_(0, 0.1)
+
+
 
   def init_gate(self):
     self.gate_params.weight.data.normal_(0, 0.1)
